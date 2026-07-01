@@ -9,7 +9,7 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(__file__))
 from config import FACTORY_DATA, WARNING_THRESHOLD_TEMP, CRITICAL_THRESHOLD_TEMP, WARNING_THRESHOLD_SMOKE, CRITICAL_THRESHOLD_SMOKE, WARNING_THRESHOLD_HUMIDITY_LOW, WARNING_THRESHOLD_HUMIDITY_HIGH, WARNING_THRESHOLD_PRESSURE, CRITICAL_THRESHOLD_PRESSURE
 
-MAIN_SERVER_URL = os.environ.get("MAIN_SERVER_URL", "http://localhost:8000")
+MAIN_SERVER_URL = os.environ.get("MAIN_SERVER_URL", "https://thermal-alert-backend.onrender.com")
 
 app = FastAPI(title="Thermal Alert - Simulation Server")
 
