@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.db
+*.log
+.env
+node_modules/
+Road_Network/
+Road_Network.zip
+cloud_function/
+functions/
+
