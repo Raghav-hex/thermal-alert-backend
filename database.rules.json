@@ -1,0 +1,13 @@
+{
+  "rules": {
+    ".read": true,
+    "esp32": {
+      "$factory_id": {
+        "smoke_level": {
+          ".write": true,
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+        }
+      }
+    }
+  }
+}
