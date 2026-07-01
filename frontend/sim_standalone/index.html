@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermal Alert - Simulation Panel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f1923; color: #e0e0e0;
+      padding: 24px; min-height: 100vh;
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 24px; padding-bottom: 16px;
+      border-bottom: 1px solid #2a3a4a;
+    }
+    .header h1 { font-size: 22px; color: #ff6b35; }
+    .header p { font-size: 13px; color: #8899aa; margin-top: 4px; }
+    .controls { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .controls button {
+      padding: 10px 24px; border: none; border-radius: 6px;
+      font-size: 14px; cursor: pointer; font-weight: 600;
+    }
+    .btn-manual { background: #2a3a4a; color: #e0e0e0; }
+    .btn-manual.active { background: #ff6b35; color: #fff; }
+    .btn-active { background: #2a3a4a; color: #e0e0e0; }
+    .btn-active.active { background: #4ade80; color: #000; }
+    .btn-reset { background: #4a1a1a; color: #ff6b35; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+    .card {
+      background: #1a2a3a; border-radius: 10px; padding: 18px;
+      border: 1px solid #2a3a4a;
+    }
+    .card-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
+    }
+    .card-header .name { font-weight: 600; font-size: 15px; }
+    .card-header .badge {
+      font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600;
+    }
+    .badge.normal { background: #1a4a2a; color: #4ade80; }
+    .badge.warning { background: #4a3a1a; color: #fbbf24; }
+    .badge.critical { background: #4a1a1a; color: #ff4444; }
+    .sensors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sensor {
+      background: #0f1923; border-radius: 6px; padding: 10px;
+    }
+    .sensor .label { font-size: 11px; color: #8899aa; }
+    .sensor .value { font-size: 20px; font-weight: 700; margin-top: 2px; }
+    .sensor input[type="range"] {
+      width: 100%; height: 4px; -webkit-appearance: none;
+      background: #2a3a4a; border-radius: 2px; outline: none; margin-top: 6px;
+    }
+    .sensor input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px;
+      background: #ff6b35; border-radius: 50%; cursor: pointer;
+    }
+    .sensor input[type="range"]:disabled::-webkit-slider-thumb {
+      background: #555;
+    }
+    .status-bar {
+      margin-top: 12px; padding: 8px 12px; border-radius: 6px;
+      font-size: 12px; background: #0f1923;
+    }
+    .alert-sent {
+      color: #ff4444; font-weight: 600;
+    }
+    .no-alert {
+      color: #4ade80;
+    }
+    .note {
+      margin-top: 16px; padding: 12px; background: #1a2a3a;
+      border-radius: 6px; font-size: 12px; color: #8899aa;
+      border: 1px solid #2a3a4a;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f1923; }
+    ::-webkit-scrollbar-thumb { background: #2a3a4a; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Sensor Simulation Panel</h1>
+      <p>Firecracker Factory Monitoring - Sivakasi</p>
+    </div>
+    <div id="conn-status" style="font-size:12px;color:#4ade80;">Connected</div>
+  </div>
+
+  <div class="controls">
+    <button id="btn-manual" class="btn-manual active">Manual Mode</button>
+    <button id="btn-auto" class="btn-active">Auto Mode (30s)</button>
+    <button id="btn-reset" class="btn-reset">Reset All to Normal</button>
+  </div>
+
+  <div id="loading" style="text-align:center;padding:40px;color:#8899aa;">Loading sensor data...</div>
+  <div id="grid" class="grid" style="display:none;"></div>
+
+  <div class="note">
+    <strong>How it works:</strong> Values start in NORMAL range. Drag sliders into CRITICAL range
+    (Temp >70C, Smoke >80%, Pressure >1.8) to send alerts to the main dashboard at
+    <strong>thermal-alert-backend.onrender.com</strong>. Auto Mode generates gradual drift every 30 seconds
+    and automatically alerts when critical thresholds are crossed.
+  </div>
+
+  <script>
+    const API = 'https://thermal-alert-backend.onrender.com';
+    let factories = [];
+    let autoMode = false;
+    let autoTimer = null;
+
+    async function loadState() {
+      try {
+        const resp = await fetch(API + '/api/simulation/state');
+        const data = await resp.json();
+        factories = data.factories || [];
+        autoMode = data.auto_mode || false;
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('grid').style.display = 'grid';
+        render();
+        updateButtons();
+      } catch (e) {
+        document.getElementById('loading').textContent = 'Failed to connect to simulation server. Is it running?';
+        document.getElementById('conn-status').textContent = 'Disconnected';
+        document.getElementById('conn-status').style.color = '#ff4444';
+      }
+    }
+
+    function render() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      factories.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const statusColor = { critical: '#ff4444', warning: '#fbbf24', normal: '#4ade80' };
+        let alertLine = '';
+        if (f.status === 'critical') {
+          alertLine = '<span class="alert-sent">ALERT SENT to dashboard</span>';
+        } else {
+          alertLine = '<span class="no-alert">Normal operation</span>';
+        }
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="name">${f.name}</div>
+            <div>
+              <span class="badge ${f.status}">${f.status.toUpperCase()}</span>
+            </div>
+          </div>
+          <div class="sensors">
+            <div class="sensor">
+              <div class="label">Temperature</div>
+              <div class="value" style="color:${f.sensors.temperature >= 70 ? '#ff4444' : f.sensors.temperature >= 45 ? '#fbbf24' : '#4ade80'}">${f.sensors.temperature} C</div>
+              <input type="range" min="20" max="120" value="${f.sensors.temperature}"
+                oninput="updateSensor(${f.id},'temperature',this.value)" ${autoMode ? 'disabled' : ''}>
+            </div>
+            <div class="sensor">
+              <div class="label">Humidity</div>
+              <div class="value">${f.sensors.humidity} %</div>
+              <input type="range" min="0" max="100" value="${f.sensors.humidity}"
+                oninput="updateSensor(${f.id},'humidity',this.value)" ${autoMode ? 'disabled' : ''}>
+            </div>
+            <div class="sensor">
+              <div class="label">Smoke Level</div>
+              <div class="value" style="color:${f.sensors.smoke_level >= 80 ? '#ff4444' : f.sensors.smoke_level >= 50 ? '#fbbf24' : '#4ade80'}">${f.sensors.smoke_level} %</div>
+              <input type="range" min="0" max="100" value="${f.sensors.smoke_level}"
+                oninput="updateSensor(${f.id},'smoke_level',this.value)" ${autoMode ? 'disabled' : ''}>
+            </div>
+            <div class="sensor">
+              <div class="label">Pressure</div>
+              <div class="value" style="color:${f.sensors.pressure >= 1.8 ? '#ff4444' : f.sensors.pressure >= 1.5 ? '#fbbf24' : '#4ade80'}">${f.sensors.pressure} atm</div>
+              <input type="range" min="0.8" max="2.0" step="0.01" value="${f.sensors.pressure}"
+                oninput="updateSensor(${f.id},'pressure',this.value)" ${autoMode ? 'disabled' : ''}>
+            </div>
+          </div>
+          <div class="status-bar">
+            Risk: ${f.risk.toUpperCase()} | Base Temp: ${f.base_temp} C | ${alertLine}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function updateSensor(factoryId, sensor, value) {
+      if (autoMode) return;
+      const body = { [sensor]: parseFloat(value) };
+      try {
+        await fetch(API + '/api/simulation/update/' + factoryId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        await loadState();
+      } catch (e) {}
+    }
+
+    async function doTick() {
+      try {
+        const resp = await fetch(API + '/api/simulation/tick', { method: 'POST' });
+        const data = await resp.json();
+        factories = data.factories || [];
+        autoMode = data.auto_mode || false;
+        render();
+      } catch (e) {}
+    }
+
+    document.getElementById('btn-manual').addEventListener('click', async () => {
+      stopAuto();
+      autoMode = false;
+      await fetch(API + '/api/simulation/auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: false })
+      });
+      updateButtons();
+      await loadState();
+    });
+
+    document.getElementById('btn-auto').addEventListener('click', async () => {
+      if (autoMode) {
+        stopAuto();
+        autoMode = false;
+        await fetch(API + '/api/simulation/auto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: false })
+        });
+      } else {
+        autoMode = true;
+        await fetch(API + '/api/simulation/auto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: true })
+        });
+        startAuto();
+      }
+      updateButtons();
+      await loadState();
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', async () => {
+      for (const f of factories) {
+        await fetch(API + '/api/simulation/update/' + f.id, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            temperature: f.base_temp || 30,
+            humidity: 50,
+            smoke_level: 5,
+            pressure: 1.02
+          })
+        });
+      }
+      await loadState();
+    });
+
+    function startAuto() {
+      stopAuto();
+      autoTimer = setInterval(doTick, 30000);
+    }
+
+    function stopAuto() {
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    }
+
+    function updateButtons() {
+      document.getElementById('btn-manual').classList.toggle('active', !autoMode);
+      document.getElementById('btn-auto').classList.toggle('active', autoMode);
+      document.getElementById('btn-auto').textContent = autoMode ? 'Stop Auto (30s)' : 'Auto Mode (30s)';
+      render();
+    }
+
+    loadState();
+  </script>
+</body>
+</html>
