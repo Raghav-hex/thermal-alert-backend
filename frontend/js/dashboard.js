@@ -1,7 +1,6 @@
 let factories = [];
 let stations = [];
 let activeAlert = null;
-let detectionStatus = {};
 let factoryNames = {
   1: 'Sri Kaliswari Fireworks',
   2: 'Standard Fireworks',
@@ -75,7 +74,6 @@ function initCameraGrid() {
   }
 
   pollCameraFrames();
-  pollDetectionStatus();
 }
 
 function pollCameraFrames() {
@@ -87,13 +85,12 @@ function pollCameraFrames() {
     const img = new Image();
     img.onload = function() {
       const canvas = document.getElementById('cam-canvas-' + idx);
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        drawDetectionOverlay(idx, ctx);
-      }
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      detectFireSmoke(idx, ctx);
       const ov = document.getElementById('cam-overlay-' + idx);
       if (ov) ov.style.display = 'none';
       const dt = document.getElementById('cam-dot-' + idx);
@@ -108,48 +105,48 @@ function pollCameraFrames() {
   }
 }
 
-function drawDetectionOverlay(fid, ctx) {
-  const s = detectionStatus[fid];
-  if (!s) return;
-  const w = ctx.canvas.width;
-  ctx.font = 'bold 28px monospace';
-  ctx.textBaseline = 'top';
-  if (s.fire_detected) {
-    ctx.fillStyle = '#ff4500';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
-    ctx.strokeText('FIRE ' + Math.round(s.fire_confidence * 100) + '%', 12, 12);
-    ctx.fillText('FIRE ' + Math.round(s.fire_confidence * 100) + '%', 12, 12);
-  }
-  if (s.smoke_detected) {
-    ctx.fillStyle = '#00e5ff';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
-    var yy = s.fire_detected ? 48 : 12;
-    ctx.strokeText('SMOKE ' + Math.round(s.smoke_confidence * 100) + '%', 12, yy);
-    ctx.fillText('SMOKE ' + Math.round(s.smoke_confidence * 100) + '%', 12, yy);
-  }
-}
+function detectFireSmoke(fid, ctx) {
+  try {
+    const d = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+    const px = d.data;
+    const total = ctx.canvas.width * ctx.canvas.height;
+    let firePx = 0, smokePx = 0;
 
-function pollDetectionStatus() {
-  const token = localStorage.getItem('token');
-  if (!token) return;
-  fetch(API_CAM + '/api/camera/detection?t=' + Date.now(), {
-    headers: { Authorization: 'Bearer ' + token }
-  }).then(function(r) { return r.json(); }).then(function(data) {
-    for (var k in data) {
-      detectionStatus[k] = data[k];
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i], g = px[i + 1], b = px[i + 2];
+      const intensity = (r + g + b) / 3;
+
+      if (r > 180 && r > g * 1.4 && r > b * 1.4 && r > 100) firePx++;
+
+      const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+      const sat = maxC === 0 ? 0 : 1 - minC / maxC;
+      if (intensity > 80 && intensity < 220 && sat < 0.2) smokePx++;
     }
-    var canvases = document.querySelectorAll('.cam-card canvas');
-    for (var i = 0; i < canvases.length; i++) {
-      var c = canvases[i];
-      var fid = c.closest('.cam-card').dataset.fid;
-      if (fid) drawDetectionOverlay(parseInt(fid), c.getContext('2d'));
+
+    const fireConf = Math.min(1, firePx / (total * 0.12));
+    const smokeConf = Math.min(1, smokePx / (total * 0.18));
+    const fire = fireConf >= 0.25;
+    const smoke = smokeConf >= 0.20;
+
+    ctx.font = 'bold 28px monospace';
+    ctx.textBaseline = 'top';
+
+    if (fire) {
+      ctx.fillStyle = '#ff4500';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 4;
+      ctx.strokeText('FIRE ' + Math.round(fireConf * 100) + '%', 12, 12);
+      ctx.fillText('FIRE ' + Math.round(fireConf * 100) + '%', 12, 12);
     }
-  }).catch(function(){});
-  if (document.getElementById('camera-grid').style.display !== 'none') {
-    setTimeout(pollDetectionStatus, 1000);
-  }
+    if (smoke) {
+      ctx.fillStyle = '#00e5ff';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 4;
+      const yy = fire ? 48 : 12;
+      ctx.strokeText('SMOKE ' + Math.round(smokeConf * 100) + '%', 12, yy);
+      ctx.fillText('SMOKE ' + Math.round(smokeConf * 100) + '%', 12, yy);
+    }
+  } catch (e) {}
 }
 
 function expandCam(factoryId) {

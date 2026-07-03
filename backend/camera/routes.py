@@ -1,7 +1,5 @@
 import struct
 import asyncio
-import io
-from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import Response, JSONResponse
 from jose import jwt, JWTError
@@ -11,8 +9,6 @@ router = APIRouter(prefix="/api/camera", tags=["camera"])
 
 camera_frames: dict[int, bytes] = {}
 admin_connections: list[WebSocket] = []
-_detection_status: dict[int, dict] = {}
-_executor = ThreadPoolExecutor(max_workers=1)
 
 
 def _decode_token(token: str) -> dict | None:
@@ -21,44 +17,6 @@ def _decode_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
-
-
-def _analyze_frame(factory_id: int, frame_bytes: bytes):
-    try:
-        from PIL import Image
-        import numpy as np
-        pil = Image.open(io.BytesIO(frame_bytes)).convert("RGB")
-        arr = np.array(pil)
-        h, w = arr.shape[:2]
-        total = h * w
-        if total == 0:
-            _detection_status[factory_id] = {"error": "empty frame"}
-            return
-
-        r, g, b = arr[:, :, 0].astype(np.float64), arr[:, :, 1].astype(np.float64), arr[:, :, 2].astype(np.float64)
-        intensity = (r + g + b) / 3.0
-
-        fire_mask = (r > 180) & (r > g * 1.4) & (r > b * 1.4) & (r > 100)
-        fire_px = int(np.sum(fire_mask))
-
-        smoke_mask = (intensity > 80) & (intensity < 220) & (np.abs(r - g) < 30) & (np.abs(g - b) < 30) & (np.abs(r - b) < 30)
-        smoke_px = int(np.sum(smoke_mask))
-
-        fire_conf = min(1.0, fire_px / (total * 0.12))
-        smoke_conf = min(1.0, smoke_px / (total * 0.18))
-        _detection_status[factory_id] = {
-            "fire_detected": fire_conf >= 0.25,
-            "smoke_detected": smoke_conf >= 0.20,
-            "fire_confidence": round(fire_conf, 3),
-            "smoke_confidence": round(smoke_conf, 3),
-        }
-    except Exception as e:
-        _detection_status[factory_id] = {"error": str(e)}
-
-
-async def _run_ai(factory_id: int, frame_bytes: bytes):
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(_executor, _analyze_frame, factory_id, frame_bytes)
 
 
 @router.websocket("/stream/{factory_id}")
@@ -82,7 +40,6 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
             while True:
                 data = await websocket.receive_bytes()
                 camera_frames[factory_id] = data
-                asyncio.ensure_future(_run_ai(factory_id, data))
                 framed = header + data
                 dead = []
                 for ws in admin_connections:
@@ -124,7 +81,6 @@ async def upload_frame(factory_id: int, token: str, request: Request):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
     body = await request.body()
     camera_frames[factory_id] = body
-    asyncio.ensure_future(_run_ai(factory_id, body))
     header = struct.pack("!I", factory_id)
     framed = header + body
     dead = []
@@ -153,19 +109,6 @@ async def get_all_frames():
         import base64
         result[str(fid)] = base64.b64encode(frame).decode()
     return result
-
-
-@router.get("/detection/{factory_id}")
-async def camera_detection(factory_id: int):
-    s = _detection_status.get(factory_id)
-    if not s:
-        return {"fire_detected": False, "smoke_detected": False, "fire_confidence": 0, "smoke_confidence": 0}
-    return s
-
-
-@router.get("/detection")
-async def camera_detection_all():
-    return {str(k): v for k, v in _detection_status.items()}
 
 
 @router.get("/debug")
