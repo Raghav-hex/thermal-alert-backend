@@ -128,23 +128,26 @@ function detectFireSmoke(fid, ctx) {
     const fire = fireConf >= 0.25;
     const smoke = smokeConf >= 0.20;
 
-    ctx.font = 'bold 28px monospace';
+    ctx.font = 'bold 26px monospace';
     ctx.textBaseline = 'top';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
 
     if (fire) {
       ctx.fillStyle = '#ff4500';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 4;
       ctx.strokeText('FIRE ' + Math.round(fireConf * 100) + '%', 12, 12);
       ctx.fillText('FIRE ' + Math.round(fireConf * 100) + '%', 12, 12);
     }
     if (smoke) {
       ctx.fillStyle = '#00e5ff';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 4;
       const yy = fire ? 48 : 12;
       ctx.strokeText('SMOKE ' + Math.round(smokeConf * 100) + '%', 12, yy);
       ctx.fillText('SMOKE ' + Math.round(smokeConf * 100) + '%', 12, yy);
+    }
+    if (!fire && !smoke) {
+      ctx.fillStyle = '#4ade80';
+      ctx.strokeText('SAFE', 12, 12);
+      ctx.fillText('SAFE', 12, 12);
     }
   } catch (e) {}
 }
