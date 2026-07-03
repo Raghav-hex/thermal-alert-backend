@@ -52,7 +52,12 @@ def get_factories():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "Thermal Alert System - Sivakasi"}
+    return {"status": "ok", "service": "Thermal Alert System - Sivakasi", "commit": "7b56402"}
+
+
+@app.get("/api/version")
+def version():
+    return {"version": "7b56402", "detection": True}
 
 
 FRONTEND = os.path.join(os.path.dirname(__file__), "..", "frontend")

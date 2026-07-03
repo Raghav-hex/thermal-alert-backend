@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+*.pyo
 *.db
 *.log
 .env
@@ -8,4 +9,11 @@ Road_Network/
 Road_Network.zip
 cloud_function/
 functions/
+.DS_Store
+.firebase/
+thermal_alert.db
+*.pt
+*.onnx
+*.mp4
+Fire_Smoke_Detection_Inference-main/
 

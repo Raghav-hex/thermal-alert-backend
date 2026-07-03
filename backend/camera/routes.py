@@ -1,8 +1,6 @@
 import struct
 import asyncio
 import io
-import numpy as np
-from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import Response, JSONResponse
@@ -27,6 +25,8 @@ def _decode_token(token: str) -> dict | None:
 
 def _analyze_frame(factory_id: int, frame_bytes: bytes):
     try:
+        from PIL import Image
+        import numpy as np
         pil = Image.open(io.BytesIO(frame_bytes)).convert("RGB")
         arr = np.array(pil)
         h, w = arr.shape[:2]
