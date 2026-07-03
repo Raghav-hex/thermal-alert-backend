@@ -83,6 +83,7 @@ function pollCameraFrames() {
   for (let i = 1; i <= 8; i++) {
     const idx = i;
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = function() {
       const canvas = document.getElementById('cam-canvas-' + idx);
       if (!canvas) return;
