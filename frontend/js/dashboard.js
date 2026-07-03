@@ -115,11 +115,12 @@ function detectFireSmoke(fid, ctx) {
 
     for (let i = 0; i < px.length; i += 4) {
       const r = px[i], g = px[i + 1], b = px[i + 2];
-      if (r > 200 && g < 120 && b < 100 && r > g * 1.6) firePx++;
+      const brightness = (r + g + b) / 3;
+      if (r > 150 && r > g * 1.1 && r > b * 1.4 && brightness > 100) firePx++;
     }
 
-    const fireConf = Math.min(1, firePx / (total * 0.05));
-    const fire = fireConf >= 0.12;
+    const fireConf = Math.min(1, firePx / (total * 0.03));
+    const fire = fireConf >= 0.08;
 
     ctx.font = 'bold 26px monospace';
     ctx.textBaseline = 'top';
