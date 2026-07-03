@@ -116,6 +116,13 @@
     let frameCount = 0;
     let lastFpsTime = 0;
 
+    function jwtPayload(token) {
+      try {
+        const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(b64));
+      } catch (e) { return null; }
+    }
+
     const FACTORIES = [
       { id: 1, name: 'Sri Kaliswari Fireworks' },
       { id: 2, name: 'Standard Fireworks' },
@@ -130,36 +137,30 @@
     async function init() {
       const stored = localStorage.getItem('token');
       if (stored) {
-        try {
-          token = stored;
-          const payload = JSON.parse(atob(token.split('.')[1]));
+        token = stored;
+        const payload = jwtPayload(token);
+        if (payload && payload.role === 'factory') {
           factoryId = payload.factory_id;
-          const role = payload.role;
-          if (role !== 'factory') {
-            document.getElementById('factory-name').textContent = 'Not a factory account';
-            document.getElementById('btn-cam').disabled = true;
-            return;
-          }
           const f = FACTORIES.find(x => x.id === factoryId);
           factoryName = f ? f.name : 'Factory ' + factoryId;
           document.getElementById('factory-name').textContent = factoryName;
           return;
-        } catch (e) {}
+        }
       }
 
       const params = new URLSearchParams(window.location.search);
       const t = params.get('token');
       if (t) {
-        try {
+        const payload = jwtPayload(t);
+        if (payload && payload.factory_id) {
           token = t;
           localStorage.setItem('token', token);
-          const payload = JSON.parse(atob(token.split('.')[1]));
           factoryId = payload.factory_id;
           const f = FACTORIES.find(x => x.id === factoryId);
           factoryName = f ? f.name : 'Factory ' + factoryId;
           document.getElementById('factory-name').textContent = factoryName;
           return;
-        } catch (e) {}
+        }
       }
 
       document.getElementById('factory-name').textContent = 'Login required';
@@ -179,7 +180,7 @@
     async function startCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: 640, height: 480, frameRate: 24 }
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }
         });
         const video = document.getElementById('video');
         video.srcObject = stream;
