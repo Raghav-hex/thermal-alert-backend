@@ -159,9 +159,13 @@ async function loadActiveAlerts() {
   try {
     const alerts = await apiGet('/api/alerts/active');
     const container = document.getElementById('alert-list');
-    container.innerHTML = '<h3 style="display:inline">Active Alerts</h3> <button onclick="resolveAllAlerts()" style="float:right;padding:2px 10px;background:#e63946;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;">Resolve All</button><div style="clear:both"></div>';
+    container.innerHTML = '<h3 style="display:inline">Active Alerts</h3> <button id="resolve-all-btn" style="float:right;padding:2px 10px;background:#e63946;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;">Resolve All</button><div style="clear:both"></div>';
+    const rbtn = document.getElementById('resolve-all-btn');
+    if (rbtn) rbtn.onclick = resolveAllAlerts;
 
     if (!alerts || alerts.length === 0) {
+      const rem = document.getElementById('resolve-all-btn');
+      if (rem) rem.remove();
       container.innerHTML += '<p style="color:#4ade80;font-size:13px;padding:8px 0;">All Clear - No active alerts</p>';
       return;
     }
