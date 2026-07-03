@@ -177,6 +177,16 @@ def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
     return {"message": "Alert resolved"}
 
 
+@router.post("/resolve-all")
+def resolve_all_alerts(db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    db.query(Alert).filter(Alert.status == "active").update(
+        {"status": "resolved", "resolved_at": now}
+    )
+    db.commit()
+    return {"message": "All alerts resolved"}
+
+
 @router.get("/stations")
 async def get_stations():
     await ensure_stations_loaded()

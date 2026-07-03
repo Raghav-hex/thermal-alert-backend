@@ -159,7 +159,7 @@ async function loadActiveAlerts() {
   try {
     const alerts = await apiGet('/api/alerts/active');
     const container = document.getElementById('alert-list');
-    container.innerHTML = '<h3>Active Alerts</h3>';
+    container.innerHTML = '<h3 style="display:inline">Active Alerts</h3> <button onclick="resolveAllAlerts()" style="float:right;padding:2px 10px;background:#e63946;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;">Resolve All</button><div style="clear:both"></div>';
 
     if (!alerts || alerts.length === 0) {
       container.innerHTML += '<p style="color:#4ade80;font-size:13px;padding:8px 0;">All Clear - No active alerts</p>';
@@ -221,5 +221,15 @@ async function resolveAlert(alertId) {
     loadActiveAlerts();
   } catch (e) {
     console.error('Failed to resolve:', e);
+  }
+}
+
+async function resolveAllAlerts() {
+  try {
+    await apiPost('/api/alerts/resolve-all', {});
+    clearRoutes();
+    loadActiveAlerts();
+  } catch (e) {
+    console.error('Failed to resolve all:', e);
   }
 }
