@@ -25,6 +25,8 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    role: str = "admin"
+    factory_id: int | None = None
 
 
 class LoginRequest(BaseModel):
@@ -37,6 +39,8 @@ class TokenResponse(BaseModel):
     token_type: str
     username: str
     is_admin: bool
+    role: str = "admin"
+    factory_id: int | None = None
 
 
 def create_access_token(data: dict):
@@ -73,11 +77,14 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         username=req.username,
         email=req.email,
         hashed_password=hash_password(req.password),
+        role=req.role,
+        factory_id=req.factory_id,
+        is_admin=(req.role == "admin"),
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"message": "User created", "id": user.id}
+    return {"message": "User created", "id": user.id, "role": user.role}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -85,12 +92,14 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == req.username).first()
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": user.username, "admin": user.is_admin})
+    token = create_access_token({"sub": user.username, "admin": user.is_admin, "role": user.role, "factory_id": user.factory_id})
     return TokenResponse(
         access_token=token,
         token_type="bearer",
         username=user.username,
         is_admin=user.is_admin,
+        role=user.role,
+        factory_id=user.factory_id,
     )
 
 

@@ -10,6 +10,16 @@ import alert.models
 
 Base.metadata.create_all(bind=engine)
 
+from sqlalchemy import inspect, text
+inspector = inspect(engine)
+columns = [c["name"] for c in inspector.get_columns("users")]
+with engine.connect() as conn:
+    if "role" not in columns:
+        conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'admin'"))
+    if "factory_id" not in columns:
+        conn.execute(text("ALTER TABLE users ADD COLUMN factory_id INTEGER"))
+    conn.commit()
+
 from config import FACTORY_DATA
 
 app = FastAPI(title="Thermal Alert System - Sivakasi")
@@ -26,11 +36,13 @@ from auth.routes import router as auth_router
 from alert.routes import router as alert_router
 from simulation.routes import router as sim_router
 from esp32.routes import router as esp32_router
+from camera.routes import router as camera_router
 
 app.include_router(auth_router)
 app.include_router(alert_router)
 app.include_router(sim_router)
 app.include_router(esp32_router)
+app.include_router(camera_router)
 
 
 @app.get("/api/factories")

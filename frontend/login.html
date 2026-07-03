@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermal Alert System - Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h1>Thermal Alert</h1>
+      <p>Sivakasi Firecracker Factory Monitoring System</p>
+      <div id="error" class="error"></div>
+      <input type="text" id="username" placeholder="Username" autocomplete="username">
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+      <button onclick="handleLogin()">Sign In</button>
+      <div class="register-link">
+        Don't have an account? <a href="#" onclick="showRegister()">Register</a>
+      </div>
+    </div>
+  </div>
+  <script src="/config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+    if (isLoggedIn()) {
+      if (localStorage.getItem('role') === 'factory') {
+        window.location.href = '/factory.html';
+      } else {
+        window.location.href = '/';
+      }
+    }
+
+    async function handleLogin() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = '';
+      if (!username || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
+      try {
+        const data = await login(username, password);
+        if (data.role === 'factory') {
+          window.location.href = '/factory.html';
+        } else {
+          window.location.href = '/';
+        }
+      } catch (e) {
+        errorEl.textContent = e.message || 'Login failed';
+      }
+    }
+
+    function showRegister() {
+      const card = document.querySelector('.login-card');
+      card.innerHTML = `
+        <h1>Register</h1>
+        <p>Create a new account</p>
+        <div id="error" class="error"></div>
+        <input type="text" id="reg-username" placeholder="Username">
+        <input type="email" id="reg-email" placeholder="Email">
+        <input type="password" id="reg-password" placeholder="Password">
+        <select id="reg-role" style="width:100%;padding:12px 16px;margin-bottom:12px;background:#0f1923;border:1px solid #2a3a4a;border-radius:6px;color:#e0e0e0;font-size:14px;">
+          <option value="admin">Admin</option>
+          <option value="factory">Factory</option>
+        </select>
+        <select id="reg-factory" style="width:100%;padding:12px 16px;margin-bottom:12px;background:#0f1923;border:1px solid #2a3a4a;border-radius:6px;color:#e0e0e0;font-size:14px;display:none;">
+          <option value="">-- Select Factory --</option>
+          ${[1,2,3,4,5,6,7,8].map(i => '<option value="' + i + '">Factory ' + i + '</option>').join('')}
+        </select>
+        <button onclick="handleRegister()">Create Account</button>
+        <div class="register-link">
+          Already have an account? <a href="#" onclick="showLogin()">Sign In</a>
+        </div>
+      `;
+      document.getElementById('reg-role').addEventListener('change', function() {
+        document.getElementById('reg-factory').style.display = this.value === 'factory' ? 'block' : 'none';
+      });
+    }
+
+    async function handleRegister() {
+      const username = document.getElementById('reg-username').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const role = document.getElementById('reg-role').value;
+      const factoryId = document.getElementById('reg-factory').value;
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = '';
+      if (!username || !email || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
+      if (role === 'factory' && !factoryId) { errorEl.textContent = 'Please select a factory'; return; }
+      try {
+        const res = await fetch(API + '/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username, email, password,
+            role: role,
+            factory_id: role === 'factory' ? parseInt(factoryId) : null,
+          })
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Registration failed'); }
+        await login(username, password);
+        if (role === 'factory') {
+          window.location.href = '/factory.html';
+        } else {
+          window.location.href = '/';
+        }
+      } catch (e) {
+        errorEl.textContent = e.message || 'Registration failed';
+      }
+    }
+
+    function showLogin() {
+      window.location.reload();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  </script>
+</body>
+</html>

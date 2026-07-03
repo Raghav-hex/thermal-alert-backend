@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermal Alert Dashboard - Sivakasi</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>Thermal Alert</h1>
+      <div class="user-info">
+        <span id="username-display"></span>
+        <a href="#" onclick="logout()" style="color:#8899aa;text-decoration:none;margin-left:8px;font-size:11px;">Logout</a>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <a id="nav-dashboard" href="#" class="active">Map</a>
+      <a id="nav-cameras" href="#">Cameras</a>
+    </div>
+    <div class="sidebar-content">
+      <div id="factory-list"></div>
+      <div id="alert-list" class="alert-panel"></div>
+    </div>
+  </div>
+  <div class="main-content" id="dashboard-view">
+    <div id="map"></div>
+    <div id="camera-grid" style="display:none;"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/map.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', loadDashboard);
+  </script>
+</body>
+</html>
