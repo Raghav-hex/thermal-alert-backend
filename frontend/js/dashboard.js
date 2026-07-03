@@ -117,17 +117,17 @@ function detectFireSmoke(fid, ctx) {
       const r = px[i], g = px[i + 1], b = px[i + 2];
       const intensity = (r + g + b) / 3;
 
-      if (r > 180 && r > g * 1.4 && r > b * 1.4 && r > 100) firePx++;
+      if (r > 200 && g < 100 && b < 80 && r > g * 1.8) firePx++;
 
       const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
-      const sat = maxC === 0 ? 0 : 1 - minC / maxC;
-      if (intensity > 80 && intensity < 220 && sat < 0.2) smokePx++;
+      const diff = maxC - minC;
+      if (intensity > 40 && intensity < 200 && diff < 15) smokePx++;
     }
 
-    const fireConf = Math.min(1, firePx / (total * 0.12));
-    const smokeConf = Math.min(1, smokePx / (total * 0.18));
-    const fire = fireConf >= 0.25;
-    const smoke = smokeConf >= 0.20;
+    const fireConf = Math.min(1, firePx / (total * 0.08));
+    const smokeConf = Math.min(1, smokePx / (total * 0.30));
+    const fire = fireConf >= 0.18;
+    const smoke = smokeConf >= 0.55;
 
     ctx.font = 'bold 26px monospace';
     ctx.textBaseline = 'top';
