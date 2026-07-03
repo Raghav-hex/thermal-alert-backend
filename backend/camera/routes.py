@@ -99,7 +99,7 @@ async def get_latest_frame(factory_id: int):
     frame = camera_frames.get(factory_id)
     if not frame:
         return Response(status_code=404)
-    return Response(content=frame, media_type="image/jpeg")
+    return Response(content=frame, media_type="image/jpeg", headers={"Access-Control-Allow-Origin": "*"})
 
 
 @router.get("/latest")
