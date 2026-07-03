@@ -111,23 +111,15 @@ function detectFireSmoke(fid, ctx) {
     const d = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
     const px = d.data;
     const total = ctx.canvas.width * ctx.canvas.height;
-    let firePx = 0, smokePx = 0;
+    let firePx = 0;
 
     for (let i = 0; i < px.length; i += 4) {
       const r = px[i], g = px[i + 1], b = px[i + 2];
-      const intensity = (r + g + b) / 3;
-
-      if (r > 200 && g < 100 && b < 80 && r > g * 1.8) firePx++;
-
-      const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
-      const diff = maxC - minC;
-      if (intensity > 40 && intensity < 200 && diff < 15) smokePx++;
+      if (r > 200 && g < 120 && b < 100 && r > g * 1.6) firePx++;
     }
 
-    const fireConf = Math.min(1, firePx / (total * 0.08));
-    const smokeConf = Math.min(1, smokePx / (total * 0.30));
-    const fire = fireConf >= 0.18;
-    const smoke = smokeConf >= 0.55;
+    const fireConf = Math.min(1, firePx / (total * 0.05));
+    const fire = fireConf >= 0.12;
 
     ctx.font = 'bold 26px monospace';
     ctx.textBaseline = 'top';
@@ -138,14 +130,7 @@ function detectFireSmoke(fid, ctx) {
       ctx.fillStyle = '#ff4500';
       ctx.strokeText('FIRE ' + Math.round(fireConf * 100) + '%', 12, 12);
       ctx.fillText('FIRE ' + Math.round(fireConf * 100) + '%', 12, 12);
-    }
-    if (smoke) {
-      ctx.fillStyle = '#00e5ff';
-      const yy = fire ? 48 : 12;
-      ctx.strokeText('SMOKE ' + Math.round(smokeConf * 100) + '%', 12, yy);
-      ctx.fillText('SMOKE ' + Math.round(smokeConf * 100) + '%', 12, yy);
-    }
-    if (!fire && !smoke) {
+    } else {
       ctx.fillStyle = '#4ade80';
       ctx.strokeText('SAFE', 12, 12);
       ctx.fillText('SAFE', 12, 12);
