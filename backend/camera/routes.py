@@ -70,3 +70,12 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
                 admin_connections.remove(websocket)
     else:
         await websocket.close(code=4001, reason="Unknown role")
+
+
+@router.get("/debug")
+async def camera_debug():
+    return {
+        "active_factories": list(camera_frames.keys()),
+        "frame_sizes": {fid: len(frame) for fid, frame in camera_frames.items()},
+        "admin_count": len(admin_connections),
+    }

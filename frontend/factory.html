@@ -58,6 +58,7 @@
         <div class="factory-name" id="factory-name">Loading...</div>
       </div>
       <div>
+        <span id="ws-status" style="font-size:11px;color:#ff4444;margin-right:8px;">WS: --</span>
         <span id="fps-counter" style="font-size:12px;color:#8899aa;">0 fps</span>
       </div>
     </div>
@@ -242,22 +243,35 @@
       return window.location.host;
     }
 
+    function setWsStatus(state) {
+      const el = document.getElementById('ws-status');
+      if (state === 'connected') { el.textContent = 'WS: OK'; el.style.color = '#4ade80'; }
+      else if (state === 'connecting') { el.textContent = 'WS: ...'; el.style.color = '#fbbf24'; }
+      else { el.textContent = 'WS: --'; el.style.color = '#ff4444'; }
+    }
+
     function connectWebSocket() {
       if (ws) ws.close();
-      const protocol = API_BASE_URL && API_BASE_URL.startsWith('https') ? 'wss:' : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
+      setWsStatus('connecting');
+      const protocol = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL.startsWith('https')) ? 'wss:' : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
       const host = getWsHost();
       const url = protocol + '//' + host + '/api/camera/stream/' + factoryId + '?token=' + token;
+      console.log('WS connecting to:', url.replace(token, 'TOKEN'));
       ws = new WebSocket(url);
       ws.onopen = function() {
         console.log('WebSocket connected');
+        setWsStatus('connected');
       };
-      ws.onclose = function() {
+      ws.onclose = function(e) {
+        console.log('WebSocket closed:', e.code, e.reason);
+        setWsStatus('closed');
         if (streaming) {
-          setTimeout(connectWebSocket, 1000);
+          setTimeout(connectWebSocket, 3000);
         }
       };
       ws.onerror = function(e) {
-        console.error('WebSocket error', e);
+        console.error('WebSocket error');
+        setWsStatus('error');
       };
     }
 
