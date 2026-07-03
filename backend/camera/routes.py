@@ -1,17 +1,18 @@
 import struct
 import asyncio
+import numpy as np
+import cv2
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import Response, JSONResponse
 from jose import jwt, JWTError
 from config import SECRET_KEY, ALGORITHM
-from ai.detector import analyze_frame, get_status, get_all_status
 
 router = APIRouter(prefix="/api/camera", tags=["camera"])
 
 camera_frames: dict[int, bytes] = {}
 admin_connections: list[WebSocket] = []
-
+_detection_status: dict[int, dict] = {}
 _executor = ThreadPoolExecutor(max_workers=1)
 
 
@@ -23,9 +24,40 @@ def _decode_token(token: str) -> dict | None:
         return None
 
 
+def _analyze_frame(factory_id: int, frame_bytes: bytes):
+    try:
+        arr = np.frombuffer(frame_bytes, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            return
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        h, w = img.shape[:2]
+        total = h * w
+
+        lower_f1, upper_f1 = np.array([0, 100, 100], dtype=np.uint8), np.array([10, 255, 255], dtype=np.uint8)
+        lower_f2, upper_f2 = np.array([170, 100, 100], dtype=np.uint8), np.array([180, 255, 255], dtype=np.uint8)
+        m1 = cv2.inRange(hsv, lower_f1, upper_f1)
+        m2 = cv2.inRange(hsv, lower_f2, upper_f2)
+        fire_px = cv2.countNonZero(cv2.bitwise_or(m1, m2))
+
+        lower_s, upper_s = np.array([0, 0, 50], dtype=np.uint8), np.array([180, 30, 220], dtype=np.uint8)
+        smoke_px = cv2.countNonZero(cv2.inRange(hsv, lower_s, upper_s))
+
+        fire_conf = min(1.0, fire_px / (total * 0.15))
+        smoke_conf = min(1.0, smoke_px / (total * 0.20))
+        _detection_status[factory_id] = {
+            "fire_detected": fire_conf >= 0.25,
+            "smoke_detected": smoke_conf >= 0.20,
+            "fire_confidence": round(fire_conf, 3),
+            "smoke_confidence": round(smoke_conf, 3),
+        }
+    except Exception:
+        pass
+
+
 async def _run_ai(factory_id: int, frame_bytes: bytes):
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(_executor, analyze_frame, factory_id, frame_bytes)
+    await loop.run_in_executor(_executor, _analyze_frame, factory_id, frame_bytes)
 
 
 @router.websocket("/stream/{factory_id}")
@@ -124,7 +156,7 @@ async def get_all_frames():
 
 @router.get("/detection/{factory_id}")
 async def camera_detection(factory_id: int):
-    s = get_status(factory_id)
+    s = _detection_status.get(factory_id)
     if not s:
         return {"fire_detected": False, "smoke_detected": False, "fire_confidence": 0, "smoke_confidence": 0}
     return s
@@ -132,7 +164,7 @@ async def camera_detection(factory_id: int):
 
 @router.get("/detection")
 async def camera_detection_all():
-    return get_all_status()
+    return {str(k): v for k, v in _detection_status.items()}
 
 
 @router.get("/debug")
