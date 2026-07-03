@@ -56,7 +56,7 @@ function initCameraGrid() {
     card.className = 'cam-card';
     card.dataset.fid = i;
     card.innerHTML = `
-      <img style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#0a121a;" id="cam-img-${i}" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="document.getElementById('cam-overlay-${i}').style.display='none';document.getElementById('cam-dot-${i}').className='cam-dot live';" onerror="document.getElementById('cam-overlay-${i}').style.display='flex';document.getElementById('cam-dot-${i}').className='cam-dot offline';">
+      <canvas width="640" height="480" style="width:100%;aspect-ratio:4/3;display:block;background:#0a121a;" id="cam-canvas-${i}"></canvas>
       <div class="cam-overlay" id="cam-overlay-${i}">No signal</div>
       <button class="cam-close" onclick="closeExpanded()">x</button>
       <div class="cam-label">
@@ -81,18 +81,27 @@ function pollCameraFrames() {
   if (!token) return;
 
   for (let i = 1; i <= 8; i++) {
-    const gt = document.getElementById('cam-overlay-' + i);
-    if (gt) gt.style.display = 'flex';
-    const dt = document.getElementById('cam-dot-' + i);
-    if (dt) dt.className = 'cam-dot offline';
-    const img = document.getElementById('cam-img-' + i);
-    if (img) {
-      img.src = API_CAM + '/api/camera/latest/' + i + '?t=' + Date.now();
-    }
+    const idx = i;
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.getElementById('cam-canvas-' + idx);
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+      }
+      const ov = document.getElementById('cam-overlay-' + idx);
+      if (ov) ov.style.display = 'none';
+      const dt = document.getElementById('cam-dot-' + idx);
+      if (dt) dt.className = 'cam-dot live';
+    };
+    img.onerror = function() {};
+    img.src = API_CAM + '/api/camera/latest/' + i + '?t=' + Date.now();
   }
 
   if (document.getElementById('camera-grid').style.display !== 'none') {
-    setTimeout(pollCameraFrames, 100);
+    setTimeout(pollCameraFrames, 200);
   }
 }
 
