@@ -90,8 +90,8 @@ function connectCameraWS() {
   const token = localStorage.getItem('token');
   if (!token) return;
 
-  const protocol = API_BASE_URL ? (API_BASE_URL.startsWith('https') ? 'wss:' : 'ws:') : (location.protocol === 'https:' ? 'wss:' : 'ws:');
-  const host = API_BASE_URL ? API_BASE_URL.replace(/^https?:\/\//, '') : window.location.host;
+  const protocol = typeof API_BASE_URL !== 'undefined' && API_BASE_URL.startsWith('https') ? 'wss:' : (location.protocol === 'https:' ? 'wss:' : 'ws:');
+  const host = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL.replace(/^https?:\/\//, '') : window.location.host;
   const url = protocol + '//' + host + '/api/camera/stream/0?token=' + token;
 
   camWebSocket = new WebSocket(url);

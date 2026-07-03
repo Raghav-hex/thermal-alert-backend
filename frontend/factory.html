@@ -128,12 +128,18 @@
     ];
 
     async function init() {
-      const stored = localStorage.getItem('factory_token');
+      const stored = localStorage.getItem('token');
       if (stored) {
         try {
           token = stored;
           const payload = JSON.parse(atob(token.split('.')[1]));
           factoryId = payload.factory_id;
+          const role = payload.role;
+          if (role !== 'factory') {
+            document.getElementById('factory-name').textContent = 'Not a factory account';
+            document.getElementById('btn-cam').disabled = true;
+            return;
+          }
           const f = FACTORIES.find(x => x.id === factoryId);
           factoryName = f ? f.name : 'Factory ' + factoryId;
           document.getElementById('factory-name').textContent = factoryName;
@@ -146,7 +152,7 @@
       if (t) {
         try {
           token = t;
-          localStorage.setItem('factory_token', token);
+          localStorage.setItem('token', token);
           const payload = JSON.parse(atob(token.split('.')[1]));
           factoryId = payload.factory_id;
           const f = FACTORIES.find(x => x.id === factoryId);
@@ -156,7 +162,6 @@
         } catch (e) {}
       }
 
-      // No token, show login prompt
       document.getElementById('factory-name').textContent = 'Login required';
       document.getElementById('btn-cam').disabled = true;
       document.getElementById('btn-cam').textContent = 'Login via Dashboard';
@@ -230,10 +235,16 @@
       document.getElementById('fps-counter').textContent = '0 fps';
     }
 
+    function getWsHost() {
+      const base = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : null;
+      if (base) return base.replace(/^https?:\/\//, '');
+      return window.location.host;
+    }
+
     function connectWebSocket() {
       if (ws) ws.close();
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = API_BASE_URL || window.location.host;
+      const protocol = API_BASE_URL && API_BASE_URL.startsWith('https') ? 'wss:' : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
+      const host = getWsHost();
       const url = protocol + '//' + host + '/api/camera/stream/' + factoryId + '?token=' + token;
       ws = new WebSocket(url);
       ws.onopen = function() {
