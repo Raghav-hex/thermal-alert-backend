@@ -134,7 +134,7 @@ function drawDetectionOverlay(fid, ctx) {
 function pollDetectionStatus() {
   const token = localStorage.getItem('token');
   if (!token) return;
-  fetch(API_CAM + '/api/camera/status?t=' + Date.now(), {
+  fetch(API_CAM + '/api/camera/detection?t=' + Date.now(), {
     headers: { Authorization: 'Bearer ' + token }
   }).then(function(r) { return r.json(); }).then(function(data) {
     for (var k in data) {

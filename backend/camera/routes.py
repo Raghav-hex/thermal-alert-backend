@@ -122,16 +122,16 @@ async def get_all_frames():
     return result
 
 
-@router.get("/status/{factory_id}")
-async def camera_status(factory_id: int):
+@router.get("/detection/{factory_id}")
+async def camera_detection(factory_id: int):
     s = get_status(factory_id)
     if not s:
         return {"fire_detected": False, "smoke_detected": False, "fire_confidence": 0, "smoke_confidence": 0}
     return s
 
 
-@router.get("/status")
-async def camera_status_all():
+@router.get("/detection")
+async def camera_detection_all():
     return get_all_status()
 
 
