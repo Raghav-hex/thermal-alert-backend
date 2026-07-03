@@ -201,10 +201,10 @@
         canvas.height = 480;
 
         function sendFrame() {
-          if (!streaming || ws.readyState !== WebSocket.OPEN) return;
+          if (!streaming) return;
           ctx.drawImage(video, 0, 0, 640, 480);
           canvas.toBlob(function(blob) {
-            if (blob && ws.readyState === WebSocket.OPEN) {
+            if (blob && ws && ws.readyState === WebSocket.OPEN) {
               ws.send(blob);
               frameCount++;
               const now = performance.now();
@@ -215,7 +215,7 @@
                 lastFpsTime = now;
               }
             }
-            if (streaming) requestAnimationFrame(sendFrame);
+            requestAnimationFrame(sendFrame);
           }, 'image/jpeg', 0.5);
         }
         sendFrame();
