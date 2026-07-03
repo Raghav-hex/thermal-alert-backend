@@ -237,12 +237,6 @@
       document.getElementById('fps-counter').textContent = '0 fps';
     }
 
-    function getWsHost() {
-      const base = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : null;
-      if (base) return base.replace(/^https?:\/\//, '');
-      return window.location.host;
-    }
-
     function setWsStatus(state) {
       const el = document.getElementById('ws-status');
       if (state === 'connected') { el.textContent = 'WS: OK'; el.style.color = '#4ade80'; }
@@ -253,25 +247,24 @@
     function connectWebSocket() {
       if (ws) ws.close();
       setWsStatus('connecting');
-      const protocol = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL.startsWith('https')) ? 'wss:' : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
-      const host = getWsHost();
-      const url = protocol + '//' + host + '/api/camera/stream/' + factoryId + '?token=' + token;
-      console.log('WS connecting to:', url.replace(token, 'TOKEN'));
+      const target = 'thermal-alert-backend.onrender.com';
+      const url = 'wss://' + target + '/api/camera/stream/' + factoryId + '?token=' + token;
+      document.getElementById('ws-status').textContent = 'Connecting to ' + target;
+      document.getElementById('ws-status').style.color = '#fbbf24';
       ws = new WebSocket(url);
       ws.onopen = function() {
-        console.log('WebSocket connected');
         setWsStatus('connected');
       };
       ws.onclose = function(e) {
-        console.log('WebSocket closed:', e.code, e.reason);
-        setWsStatus('closed');
+        document.getElementById('ws-status').textContent = 'WS closed: code=' + e.code + ' reason=' + e.reason;
+        document.getElementById('ws-status').style.color = '#ff4444';
         if (streaming) {
           setTimeout(connectWebSocket, 3000);
         }
       };
-      ws.onerror = function(e) {
-        console.error('WebSocket error');
-        setWsStatus('error');
+      ws.onerror = function() {
+        document.getElementById('ws-status').textContent = 'WS connection error';
+        document.getElementById('ws-status').style.color = '#ff4444';
       };
     }
 
