@@ -7,6 +7,11 @@ from jose import jwt, JWTError
 from config import SECRET_KEY, ALGORITHM
 from ai.detector import analyze_frame, get_status, get_all_status
 
+
+@router.get("/test")
+async def camera_test():
+    return {"ok": True}
+
 router = APIRouter(prefix="/api/camera", tags=["camera"])
 
 camera_frames: dict[int, bytes] = {}
