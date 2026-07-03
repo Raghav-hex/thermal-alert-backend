@@ -1,13 +1,18 @@
 import struct
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import Response, JSONResponse
 from jose import jwt, JWTError
 from config import SECRET_KEY, ALGORITHM
+from ai.detector import analyze_frame, get_status, get_all_status
 
 router = APIRouter(prefix="/api/camera", tags=["camera"])
 
 camera_frames: dict[int, bytes] = {}
 admin_connections: list[WebSocket] = []
+
+_executor = ThreadPoolExecutor(max_workers=1)
 
 
 def _decode_token(token: str) -> dict | None:
@@ -16,6 +21,11 @@ def _decode_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
+
+
+async def _run_ai(factory_id: int, frame_bytes: bytes):
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(_executor, analyze_frame, factory_id, frame_bytes)
 
 
 @router.websocket("/stream/{factory_id}")
@@ -39,6 +49,7 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
             while True:
                 data = await websocket.receive_bytes()
                 camera_frames[factory_id] = data
+                asyncio.ensure_future(_run_ai(factory_id, data))
                 framed = header + data
                 dead = []
                 for ws in admin_connections:
@@ -80,6 +91,7 @@ async def upload_frame(factory_id: int, token: str, request: Request):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
     body = await request.body()
     camera_frames[factory_id] = body
+    asyncio.ensure_future(_run_ai(factory_id, body))
     header = struct.pack("!I", factory_id)
     framed = header + body
     dead = []
@@ -110,9 +122,21 @@ async def get_all_frames():
     return result
 
 
+@router.get("/status/{factory_id}")
+async def camera_status(factory_id: int):
+    s = get_status(factory_id)
+    if not s:
+        return {"fire_detected": False, "smoke_detected": False, "fire_confidence": 0, "smoke_confidence": 0}
+    return s
+
+
+@router.get("/status")
+async def camera_status_all():
+    return get_all_status()
+
+
 @router.get("/debug")
 async def camera_debug():
-    import sys
     return {
         "active_factories": list(camera_frames.keys()),
         "frame_sizes": {str(fid): len(frame) for fid, frame in camera_frames.items()},

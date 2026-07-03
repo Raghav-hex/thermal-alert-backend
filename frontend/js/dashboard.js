@@ -1,6 +1,7 @@
 let factories = [];
 let stations = [];
 let activeAlert = null;
+let detectionStatus = {};
 let factoryNames = {
   1: 'Sri Kaliswari Fireworks',
   2: 'Standard Fireworks',
@@ -74,6 +75,7 @@ function initCameraGrid() {
   }
 
   pollCameraFrames();
+  pollDetectionStatus();
 }
 
 function pollCameraFrames() {
@@ -90,6 +92,7 @@ function pollCameraFrames() {
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
+        drawDetectionOverlay(idx, ctx);
       }
       const ov = document.getElementById('cam-overlay-' + idx);
       if (ov) ov.style.display = 'none';
@@ -102,6 +105,50 @@ function pollCameraFrames() {
 
   if (document.getElementById('camera-grid').style.display !== 'none') {
     setTimeout(pollCameraFrames, 200);
+  }
+}
+
+function drawDetectionOverlay(fid, ctx) {
+  const s = detectionStatus[fid];
+  if (!s) return;
+  const w = ctx.canvas.width;
+  ctx.font = 'bold 28px monospace';
+  ctx.textBaseline = 'top';
+  if (s.fire_detected) {
+    ctx.fillStyle = '#ff4500';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('FIRE ' + Math.round(s.fire_confidence * 100) + '%', 12, 12);
+    ctx.fillText('FIRE ' + Math.round(s.fire_confidence * 100) + '%', 12, 12);
+  }
+  if (s.smoke_detected) {
+    ctx.fillStyle = '#00e5ff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    var yy = s.fire_detected ? 48 : 12;
+    ctx.strokeText('SMOKE ' + Math.round(s.smoke_confidence * 100) + '%', 12, yy);
+    ctx.fillText('SMOKE ' + Math.round(s.smoke_confidence * 100) + '%', 12, yy);
+  }
+}
+
+function pollDetectionStatus() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  fetch(API_CAM + '/api/camera/status?t=' + Date.now(), {
+    headers: { Authorization: 'Bearer ' + token }
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    for (var k in data) {
+      detectionStatus[k] = data[k];
+    }
+    var canvases = document.querySelectorAll('.cam-card canvas');
+    for (var i = 0; i < canvases.length; i++) {
+      var c = canvases[i];
+      var fid = c.closest('.cam-card').dataset.fid;
+      if (fid) drawDetectionOverlay(parseInt(fid), c.getContext('2d'));
+    }
+  }).catch(function(){});
+  if (document.getElementById('camera-grid').style.display !== 'none') {
+    setTimeout(pollDetectionStatus, 1000);
   }
 }
 
