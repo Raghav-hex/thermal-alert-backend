@@ -31,6 +31,9 @@ def _analyze_frame(factory_id: int, frame_bytes: bytes):
         arr = np.array(pil)
         h, w = arr.shape[:2]
         total = h * w
+        if total == 0:
+            _detection_status[factory_id] = {"error": "empty frame"}
+            return
 
         r, g, b = arr[:, :, 0].astype(np.float64), arr[:, :, 1].astype(np.float64), arr[:, :, 2].astype(np.float64)
         intensity = (r + g + b) / 3.0
@@ -49,8 +52,8 @@ def _analyze_frame(factory_id: int, frame_bytes: bytes):
             "fire_confidence": round(fire_conf, 3),
             "smoke_confidence": round(smoke_conf, 3),
         }
-    except Exception:
-        pass
+    except Exception as e:
+        _detection_status[factory_id] = {"error": str(e)}
 
 
 async def _run_ai(factory_id: int, frame_bytes: bytes):
