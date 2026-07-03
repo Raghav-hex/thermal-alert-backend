@@ -1,7 +1,8 @@
 import struct
 import asyncio
+import io
 import numpy as np
-import cv2
+from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import Response, JSONResponse
@@ -26,25 +27,22 @@ def _decode_token(token: str) -> dict | None:
 
 def _analyze_frame(factory_id: int, frame_bytes: bytes):
     try:
-        arr = np.frombuffer(frame_bytes, dtype=np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if img is None:
-            return
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        h, w = img.shape[:2]
+        pil = Image.open(io.BytesIO(frame_bytes)).convert("RGB")
+        arr = np.array(pil)
+        h, w = arr.shape[:2]
         total = h * w
 
-        lower_f1, upper_f1 = np.array([0, 100, 100], dtype=np.uint8), np.array([10, 255, 255], dtype=np.uint8)
-        lower_f2, upper_f2 = np.array([170, 100, 100], dtype=np.uint8), np.array([180, 255, 255], dtype=np.uint8)
-        m1 = cv2.inRange(hsv, lower_f1, upper_f1)
-        m2 = cv2.inRange(hsv, lower_f2, upper_f2)
-        fire_px = cv2.countNonZero(cv2.bitwise_or(m1, m2))
+        r, g, b = arr[:, :, 0].astype(np.float64), arr[:, :, 1].astype(np.float64), arr[:, :, 2].astype(np.float64)
+        intensity = (r + g + b) / 3.0
 
-        lower_s, upper_s = np.array([0, 0, 50], dtype=np.uint8), np.array([180, 30, 220], dtype=np.uint8)
-        smoke_px = cv2.countNonZero(cv2.inRange(hsv, lower_s, upper_s))
+        fire_mask = (r > 180) & (r > g * 1.4) & (r > b * 1.4) & (r > 100)
+        fire_px = int(np.sum(fire_mask))
 
-        fire_conf = min(1.0, fire_px / (total * 0.15))
-        smoke_conf = min(1.0, smoke_px / (total * 0.20))
+        smoke_mask = (intensity > 80) & (intensity < 220) & (np.abs(r - g) < 30) & (np.abs(g - b) < 30) & (np.abs(r - b) < 30)
+        smoke_px = int(np.sum(smoke_mask))
+
+        fire_conf = min(1.0, fire_px / (total * 0.12))
+        smoke_conf = min(1.0, smoke_px / (total * 0.18))
         _detection_status[factory_id] = {
             "fire_detected": fire_conf >= 0.25,
             "smoke_detected": smoke_conf >= 0.20,
