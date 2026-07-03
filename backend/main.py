@@ -57,7 +57,15 @@ def health():
 
 @app.get("/api/version")
 def version():
-    return {"version": "7b56402", "detection": True}
+    import importlib
+    pkgs = {}
+    for name in ["PIL", "numpy", "cv2"]:
+        try:
+            importlib.import_module(name)
+            pkgs[name] = True
+        except ImportError:
+            pkgs[name] = False
+    return {"version": "3736d4f", "pkgs": pkgs}
 
 
 FRONTEND = os.path.join(os.path.dirname(__file__), "..", "frontend")
