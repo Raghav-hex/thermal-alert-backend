@@ -1,5 +1,6 @@
 import struct
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import Response, JSONResponse
 from jose import jwt, JWTError
 from config import SECRET_KEY, ALGORITHM
 
@@ -72,10 +73,48 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
         await websocket.close(code=4001, reason="Unknown role")
 
 
+@router.post("/upload/{factory_id}")
+async def upload_frame(factory_id: int, token: str, request: Request):
+    decoded = _decode_token(token)
+    if not decoded or decoded.get("role") != "factory" or decoded.get("factory_id") != factory_id:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    body = await request.body()
+    camera_frames[factory_id] = body
+    header = struct.pack("!I", factory_id)
+    framed = header + body
+    dead = []
+    for ws in admin_connections:
+        try:
+            await ws.send_bytes(framed)
+        except Exception:
+            dead.append(ws)
+    for d in dead:
+        admin_connections.remove(d)
+    return {"ok": True}
+
+
+@router.get("/latest/{factory_id}")
+async def get_latest_frame(factory_id: int):
+    frame = camera_frames.get(factory_id)
+    if not frame:
+        return Response(status_code=404)
+    return Response(content=frame, media_type="image/jpeg")
+
+
+@router.get("/latest")
+async def get_all_frames():
+    result = {}
+    for fid, frame in camera_frames.items():
+        import base64
+        result[str(fid)] = base64.b64encode(frame).decode()
+    return result
+
+
 @router.get("/debug")
 async def camera_debug():
+    import sys
     return {
         "active_factories": list(camera_frames.keys()),
-        "frame_sizes": {fid: len(frame) for fid, frame in camera_frames.items()},
+        "frame_sizes": {str(fid): len(frame) for fid, frame in camera_frames.items()},
         "admin_count": len(admin_connections),
     }

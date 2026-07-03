@@ -205,10 +205,15 @@
           if (!streaming) return;
           ctx.drawImage(video, 0, 0, 640, 480);
           canvas.toBlob(function(blob) {
-            if (blob && ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(blob);
+            if (blob) {
+              var useWs = ws && ws.readyState === WebSocket.OPEN;
+              if (useWs) {
+                ws.send(blob);
+              } else {
+                sendFrameHttp(blob);
+              }
               frameCount++;
-              const now = performance.now();
+              var now = performance.now();
               if (now - lastFpsTime >= 1000) {
                 fps = frameCount;
                 document.getElementById('fps-counter').textContent = fps + ' fps';
@@ -242,6 +247,11 @@
       if (state === 'connected') { el.textContent = 'WS: OK'; el.style.color = '#4ade80'; }
       else if (state === 'connecting') { el.textContent = 'WS: ...'; el.style.color = '#fbbf24'; }
       else { el.textContent = 'WS: --'; el.style.color = '#ff4444'; }
+    }
+
+    function sendFrameHttp(blob) {
+      const url = 'https://thermal-alert-backend.onrender.com/api/camera/upload/' + factoryId + '?token=' + token;
+      fetch(url, { method: 'POST', body: blob }).catch(function(){});
     }
 
     function connectWebSocket() {

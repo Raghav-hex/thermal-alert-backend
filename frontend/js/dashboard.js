@@ -1,11 +1,6 @@
 let factories = [];
 let stations = [];
 let activeAlert = null;
-let camWebSocket = null;
-let camCanvases = {};
-let camFps = {};
-let camFrameCount = {};
-let camLastFpsTime = {};
 let factoryNames = {
   1: 'Sri Kaliswari Fireworks',
   2: 'Standard Fireworks',
@@ -45,13 +40,11 @@ async function loadDashboard() {
     document.getElementById('nav-dashboard').classList.remove('active');
     document.getElementById('map').style.display = 'none';
     document.getElementById('camera-grid').style.display = 'block';
-    camCanvases = {};
-    camFps = {};
-    camFrameCount = {};
-    camLastFpsTime = {};
     initCameraGrid();
   });
 }
+
+const API_CAM = 'https://thermal-alert-backend.onrender.com';
 
 function initCameraGrid() {
   const container = document.getElementById('camera-grid');
@@ -63,13 +56,12 @@ function initCameraGrid() {
     card.className = 'cam-card';
     card.dataset.fid = i;
     card.innerHTML = `
-      <canvas width="640" height="480"></canvas>
+      <img style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#0a121a;" id="cam-img-${i}" src="">
       <div class="cam-overlay" id="cam-overlay-${i}">No signal</div>
       <button class="cam-close" onclick="closeExpanded()">x</button>
       <div class="cam-label">
         <span class="cam-name">${factoryNames[i]}</span>
         <div>
-          <span class="cam-fps" style="font-size:11px;color:#8899aa;margin-right:8px;">0 fps</span>
           <span class="cam-dot offline" id="cam-dot-${i}"></span>
         </div>
       </div>
@@ -81,78 +73,23 @@ function initCameraGrid() {
     grid.appendChild(card);
   }
 
-  connectCameraWS();
+  pollCameraFrames();
 }
 
-function connectCameraWS() {
-  if (camWebSocket) { camWebSocket.close(); camWebSocket = null; }
-
+function pollCameraFrames() {
   const token = localStorage.getItem('token');
   if (!token) return;
 
-  const protocol = typeof API_BASE_URL !== 'undefined' && API_BASE_URL.startsWith('https') ? 'wss:' : (location.protocol === 'https:' ? 'wss:' : 'ws:');
-  const host = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL.replace(/^https?:\/\//, '') : window.location.host;
-  const url = protocol + '//' + host + '/api/camera/stream/0?token=' + token;
-
-  camWebSocket = new WebSocket(url);
-  camWebSocket.binaryType = 'arraybuffer';
-
-  camWebSocket.onmessage = function(event) {
-    if (event.data instanceof ArrayBuffer) {
-      const buf = event.data;
-      const fid = new DataView(buf, 0, 4).getUint32(0, false);
-      const jpeg = new Uint8Array(buf, 4);
-      renderFrame(fid, jpeg);
+  for (let i = 1; i <= 8; i++) {
+    const img = document.getElementById('cam-img-' + i);
+    if (img) {
+      img.src = API_CAM + '/api/camera/latest/' + i + '?t=' + Date.now();
     }
-  };
-
-  camWebSocket.onclose = function() {
-    setTimeout(() => {
-      if (document.getElementById('camera-grid').style.display !== 'none') {
-        connectCameraWS();
-      }
-    }, 3000);
-  };
-
-  camWebSocket.onerror = function() {};
-}
-
-function renderFrame(factoryId, jpegData) {
-  const card = document.querySelector(`.cam-card[data-fid="${factoryId}"]`);
-  if (!card) return;
-
-  const overlay = document.getElementById('cam-overlay-' + factoryId);
-  if (overlay) overlay.style.display = 'none';
-
-  const dot = document.getElementById('cam-dot-' + factoryId);
-  if (dot) { dot.className = 'cam-dot live'; }
-
-  let canvas = camCanvases[factoryId];
-  if (!canvas) {
-    canvas = card.querySelector('canvas');
-    camCanvases[factoryId] = canvas;
   }
 
-  const blob = new Blob([jpegData], { type: 'image/jpeg' });
-  const img = new Image();
-  img.onload = function() {
-    const ctx = canvas.getContext('2d');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-
-    if (!camFrameCount[factoryId]) { camFrameCount[factoryId] = 0; camLastFpsTime[factoryId] = performance.now(); }
-    camFrameCount[factoryId]++;
-    const now = performance.now();
-    if (now - camLastFpsTime[factoryId] >= 1000) {
-      camFps[factoryId] = camFrameCount[factoryId];
-      camFrameCount[factoryId] = 0;
-      camLastFpsTime[factoryId] = now;
-      const fpsEl = card.querySelector('.cam-fps');
-      if (fpsEl) fpsEl.textContent = camFps[factoryId] + ' fps';
-    }
-  };
-  img.src = URL.createObjectURL(blob);
+  if (document.getElementById('camera-grid').style.display !== 'none') {
+    setTimeout(pollCameraFrames, 100);
+  }
 }
 
 function expandCam(factoryId) {

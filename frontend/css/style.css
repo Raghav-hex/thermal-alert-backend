@@ -203,7 +203,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: fl
   position: fixed; top: 10px; left: 10px; right: 10px; bottom: 10px;
   z-index: 1001; border-color: #ff6b35;
 }
-.cam-card.expanded canvas { aspect-ratio: auto; height: calc(100vh - 80px); }
+.cam-card.expanded img { aspect-ratio: auto; height: calc(100vh - 80px); object-fit: contain; }
 .cam-card .cam-close {
   position: absolute; top: 4px; right: 4px; z-index: 10;
   background: rgba(0,0,0,0.6); border: none; color: #fff;
