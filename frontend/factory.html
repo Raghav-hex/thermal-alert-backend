@@ -257,25 +257,10 @@
     function connectWebSocket() {
       if (ws) ws.close();
       setWsStatus('connecting');
-      const target = 'thermal-alert-backend.onrender.com';
-      const url = 'wss://' + target + '/api/camera/stream/' + factoryId + '?token=' + token;
-      document.getElementById('ws-status').textContent = 'Connecting to ' + target;
-      document.getElementById('ws-status').style.color = '#fbbf24';
-      ws = new WebSocket(url);
-      ws.onopen = function() {
-        setWsStatus('connected');
-      };
-      ws.onclose = function(e) {
-        document.getElementById('ws-status').textContent = 'WS closed: code=' + e.code + ' reason=' + e.reason;
-        document.getElementById('ws-status').style.color = '#ff4444';
-        if (streaming) {
-          setTimeout(connectWebSocket, 3000);
-        }
-      };
-      ws.onerror = function() {
-        document.getElementById('ws-status').textContent = 'WS connection error';
-        document.getElementById('ws-status').style.color = '#ff4444';
-      };
+      ws = new WebSocket('wss://thermal-alert-backend.onrender.com/api/camera/stream/' + factoryId + '?token=' + token);
+      ws.onopen = function() { setWsStatus('connected'); };
+      ws.onclose = function() { setWsStatus('disconnected'); if (streaming) setTimeout(connectWebSocket, 5000); };
+      ws.onerror = function() { setWsStatus('disconnected'); };
     }
 
     async function updateSensor(sensor, value) {
