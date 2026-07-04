@@ -6,8 +6,31 @@
   <title>Thermal Alert Dashboard - Sivakasi</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    #loading-overlay {
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:#0f1923;z-index:99999;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      transition:opacity .4s;
+    }
+    #loading-overlay.hide { opacity:0;pointer-events:none; }
+    .spinner {
+      width:48px;height:48px;border:4px solid #1a2a3a;
+      border-top-color:#ff6b35;border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #loading-text { color:#8899aa;font-family:monospace;margin-top:20px;font-size:14px; }
+    #loading-sub { color:#556;font-family:monospace;margin-top:6px;font-size:11px; }
+  </style>
 </head>
 <body>
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text">Initializing...</div>
+    <div id="loading-sub"></div>
+  </div>
+
   <div class="sidebar">
     <div class="sidebar-header">
       <h1>Thermal Alert</h1>
@@ -31,11 +54,13 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
   <script src="/config.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/map.js"></script>
   <script src="/js/dashboard.js"></script>
   <script>
+    window._hideLoading = function() { document.getElementById('loading-overlay').classList.add('hide'); };
     document.addEventListener('DOMContentLoaded', loadDashboard);
   </script>
 </body>

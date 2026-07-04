@@ -1,4 +1,5 @@
 import struct
+import time
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import Response, JSONResponse
@@ -8,6 +9,8 @@ from config import SECRET_KEY, ALGORITHM
 router = APIRouter(prefix="/api/camera", tags=["camera"])
 
 camera_frames: dict[int, bytes] = {}
+camera_last_upload: dict[int, float] = {}
+STALE_AFTER = 30
 admin_connections: list[WebSocket] = []
 
 
@@ -38,8 +41,9 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
         header = struct.pack("!I", factory_id)
         try:
             while True:
-                data = await websocket.receive_bytes()
-                camera_frames[factory_id] = data
+                    data = await websocket.receive_bytes()
+                    camera_frames[factory_id] = data
+                    camera_last_upload[factory_id] = time.time()
                 framed = header + data
                 dead = []
                 for ws in admin_connections:
@@ -53,6 +57,7 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
             pass
         finally:
             camera_frames.pop(factory_id, None)
+            camera_last_upload.pop(factory_id, None)
 
     elif role == "admin":
         await websocket.accept()
@@ -81,6 +86,7 @@ async def upload_frame(factory_id: int, token: str, request: Request):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
     body = await request.body()
     camera_frames[factory_id] = body
+    camera_last_upload[factory_id] = time.time()
     header = struct.pack("!I", factory_id)
     framed = header + body
     dead = []
@@ -99,6 +105,9 @@ async def get_latest_frame(factory_id: int):
     frame = camera_frames.get(factory_id)
     if not frame:
         return Response(status_code=404)
+    last = camera_last_upload.get(factory_id)
+    if last and time.time() - last > STALE_AFTER:
+        return Response(status_code=204)
     return Response(content=frame, media_type="image/jpeg", headers={"Access-Control-Allow-Origin": "*"})
 
 
