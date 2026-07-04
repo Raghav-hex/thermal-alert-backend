@@ -19,7 +19,6 @@ let detectionsCache = {};
 let lastInfTime = {};
 let infQueue = [];
 let infProcessing = false;
-let pollTimerId = null;
 
 async function loadFireModel() {
   if (ortSession) return ortSession;
@@ -117,6 +116,7 @@ async function loadDashboard() {
   if (typeof window._hideLoading === 'function') window._hideLoading();
   setTimeout(() => map?.invalidateSize(), 300);
   initCameraGrid();
+  renderLoop();
 
   document.getElementById('nav-dashboard').addEventListener('click', () => {
     document.getElementById('nav-dashboard').classList.add('active');
@@ -136,21 +136,7 @@ async function loadDashboard() {
 }
 
 const API_CAM = 'https://thermal-alert-backend.onrender.com';
-const POLL_MS = 50;
-const RETRY_MS = 2000;
-const MAX_STALE = 100;
 let camGen = 0;
-let frameFingerprint = {};
-let frameStaleCount = {};
-
-function getFingerprint(ctx, w, h) {
-  const p1 = ctx.getImageData(15, 15, 1, 1).data;
-  const p2 = ctx.getImageData(w >> 1, h >> 1, 1, 1).data;
-  const p3 = ctx.getImageData(w - 15, h - 15, 1, 1).data;
-  return p1[0]+','+p1[1]+','+p1[2]+'|'+
-         p2[0]+','+p2[1]+','+p2[2]+'|'+
-         p3[0]+','+p3[1]+','+p3[2];
-}
 
 function initCameraGrid() {
   const container = document.getElementById('camera-grid');
@@ -163,8 +149,13 @@ function initCameraGrid() {
     const card = document.createElement('div');
     card.className = 'cam-card';
     card.dataset.fid = i;
+    card.style.position = 'relative';
     card.innerHTML = `
-      <canvas width="640" height="480" style="width:100%;aspect-ratio:4/3;display:block;background:#0a121a;" id="cam-canvas-${i}"></canvas>
+      <img id="cam-img-${i}" crossorigin="anonymous"
+           style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
+      <canvas id="cam-canvas-${i}"
+              style="width:100%;aspect-ratio:4/3;display:block;background:#0a121a;">
+      </canvas>
       <div class="cam-overlay" id="cam-overlay-${i}">No signal</div>
       <button class="cam-close" onclick="closeExpanded()">x</button>
       <div class="cam-label">
@@ -179,103 +170,94 @@ function initCameraGrid() {
       if (!this.classList.contains('expanded')) expandCam(i);
     });
     grid.appendChild(card);
-    schedulePoll(i, gen, true);
+    connectMJPEG(i, gen);
   }
 }
 
-function schedulePoll(idx, gen, immediate, isRetry) {
+function connectMJPEG(idx, gen) {
   if (gen !== camGen) return;
   if (!localStorage.getItem('token')) return;
   if (document.getElementById('camera-grid').style.display === 'none') {
-    setTimeout(() => schedulePoll(idx, gen, true, isRetry), RETRY_MS);
+    setTimeout(() => connectMJPEG(idx, gen), 2000);
     return;
   }
-  const delay = isRetry ? RETRY_MS : immediate ? 0 : POLL_MS;
-  setTimeout(() => pollOne(idx, gen), delay);
-}
 
-function pollOne(idx, gen) {
-  if (gen !== camGen) return;
+  const img = document.getElementById('cam-img-' + idx);
+  if (!img) return;
 
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
+  const doReconnect = () => {
+    const canvas = document.getElementById('cam-canvas-' + idx);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    const ov = document.getElementById('cam-overlay-' + idx);
+    if (ov) ov.style.display = '';
+    const dt = document.getElementById('cam-dot-' + idx);
+    if (dt) dt.className = 'cam-dot offline';
+    setTimeout(() => connectMJPEG(idx, gen), 2000);
+  };
 
   img.onload = function() {
     if (gen !== camGen) return;
+    if (!img.naturalWidth) { doReconnect(); return; }
     const canvas = document.getElementById('cam-canvas-' + idx);
-    if (!canvas) return;
-    if (!img.naturalWidth) {
-      goOffline(idx, gen);
-      return;
+    if (canvas) {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
     }
-    const ctx = canvas.getContext('2d');
-    if (canvas.width !== img.width) canvas.width = img.width;
-    if (canvas.height !== img.height) canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-
-    try {
-      const fp = getFingerprint(ctx, canvas.width, canvas.height);
-      if (fp === frameFingerprint[idx]) {
-        frameStaleCount[idx] = (frameStaleCount[idx] || 0) + 1;
-      } else {
-        frameStaleCount[idx] = 0;
-        frameFingerprint[idx] = fp;
-      }
-      if (frameStaleCount[idx] > MAX_STALE) {
-        goOffline(idx, gen);
-        return;
-      }
-    } catch (_) {}
-
-    const dets = detectionsCache[idx] || [];
-    const sx = canvas.width / 640;
-    const sy = canvas.height / 640;
-
-    if (dets.length > 0) {
-      const best = dets.reduce((a, b) => a.conf > b.conf ? a : b);
-      ctx.font = 'bold 26px monospace';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#ff4500';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 4;
-      ctx.strokeText('FIRE ' + Math.round(best.conf * 100) + '%', 12, 12);
-      ctx.fillText('FIRE ' + Math.round(best.conf * 100) + '%', 12, 12);
-      ctx.strokeStyle = '#ff4500';
-      ctx.lineWidth = 3;
-      for (const d of dets) {
-        ctx.strokeRect(d.x1 * sx, d.y1 * sy, (d.x2 - d.x1) * sx, (d.y2 - d.y1) * sy);
-      }
-    }
-
     const ov = document.getElementById('cam-overlay-' + idx);
     if (ov) ov.style.display = 'none';
     const dt = document.getElementById('cam-dot-' + idx);
     if (dt) dt.className = 'cam-dot live';
-
-    triggerNextInference();
-    schedulePoll(idx, gen);
   };
 
   img.onerror = function() {
     if (gen !== camGen) return;
-    goOffline(idx, gen);
+    doReconnect();
   };
 
-  img.src = API_CAM + '/api/camera/latest/' + idx + '?t=' + Date.now();
+  img.src = API_CAM + '/api/camera/mjpeg/' + idx + '?t=' + Date.now();
 }
 
-function goOffline(idx, gen) {
-  if (gen !== camGen) return;
-  const canvas = document.getElementById('cam-canvas-' + idx);
-  if (canvas) {
+// Render loop — draws frame + FIRE boxes on canvas at 60fps
+function renderLoop() {
+  for (let i = 1; i <= 8; i++) {
+    const canvas = document.getElementById('cam-canvas-' + i);
+    const img = document.getElementById('cam-img-' + i);
+    const overlay = document.getElementById('cam-overlay-' + i);
+    if (!canvas || !img) continue;
+    if (overlay && overlay.style.display !== 'none') continue;
+    if (!img.naturalWidth) continue;
+
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+    }
+    ctx.drawImage(img, 0, 0);
+
+    const dets = detectionsCache[i] || [];
+    if (dets.length === 0) continue;
+
+    const sx = canvas.width / 640;
+    const sy = canvas.height / 640;
+
+    const best = dets.reduce((a, b) => a.conf > b.conf ? a : b);
+    ctx.font = 'bold 26px monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#ff4500';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('FIRE ' + Math.round(best.conf * 100) + '%', 12, 12);
+    ctx.fillText('FIRE ' + Math.round(best.conf * 100) + '%', 12, 12);
+    ctx.strokeStyle = '#ff4500';
+    ctx.lineWidth = 3;
+    for (const d of dets) {
+      ctx.strokeRect(d.x1 * sx, d.y1 * sy, (d.x2 - d.x1) * sx, (d.y2 - d.y1) * sy);
+    }
   }
-  const ov = document.getElementById('cam-overlay-' + idx);
-  if (ov) ov.style.display = '';
-  const dt = document.getElementById('cam-dot-' + idx);
-  if (dt) dt.className = 'cam-dot offline';
-  schedulePoll(idx, gen, false, true);
+  requestAnimationFrame(renderLoop);
 }
 
 // Inference queue — one at a time
@@ -295,7 +277,7 @@ async function processInfQueue() {
     const idx = infQueue.shift();
     await new Promise(r => setTimeout(r, 0));
     const canvas = document.getElementById('cam-canvas-' + idx);
-    if (!canvas) continue;
+    if (!canvas || !canvas.width) continue;
     const ctx = canvas.getContext('2d');
     try {
       const dets = await detectWithModel(ctx);

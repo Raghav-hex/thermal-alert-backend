@@ -181,8 +181,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: fl
   background: #1a2a3a; border-radius: 10px; overflow: hidden;
   border: 1px solid #2a3a4a; position: relative;
 }
-.cam-card video, .cam-card canvas {
-  width: 100%; aspect-ratio: 4/3; display: block; background: #0a121a;
+.cam-card img {
+  width: 100%; aspect-ratio: 4/3; display: block;
+  object-fit: contain; background: #0a121a;
+}
+.cam-card canvas {
+  width: 100%; display: block; background: #0a121a;
 }
 .cam-card .cam-label {
   padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;
@@ -194,6 +198,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: fl
 }
 .cam-dot.live { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
 .cam-dot.offline { background: #555; }
+.cam-card.expanded canvas { width: 100%; height: calc(100vh - 80px); }
 .cam-card .cam-overlay {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: center;
@@ -203,7 +208,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: fl
   position: fixed; top: 10px; left: 10px; right: 10px; bottom: 10px;
   z-index: 1001; border-color: #ff6b35;
 }
-.cam-card.expanded canvas { width: 100%; height: calc(100vh - 80px); }
 .cam-card .cam-close {
   position: absolute; top: 4px; right: 4px; z-index: 10;
   background: rgba(0,0,0,0.6); border: none; color: #fff;
