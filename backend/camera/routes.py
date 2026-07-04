@@ -41,9 +41,9 @@ async def camera_stream(websocket: WebSocket, factory_id: int):
         header = struct.pack("!I", factory_id)
         try:
             while True:
-                    data = await websocket.receive_bytes()
-                    camera_frames[factory_id] = data
-                    camera_last_upload[factory_id] = time.time()
+                data = await websocket.receive_bytes()
+                camera_frames[factory_id] = data
+                camera_last_upload[factory_id] = time.time()
                 framed = header + data
                 dead = []
                 for ws in admin_connections:
