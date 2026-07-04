@@ -204,28 +204,28 @@ function pollOne(idx, gen) {
     if (gen !== camGen) return;
     const canvas = document.getElementById('cam-canvas-' + idx);
     if (!canvas) return;
+    if (!img.naturalWidth) {
+      goOffline(idx, gen);
+      return;
+    }
     const ctx = canvas.getContext('2d');
     if (canvas.width !== img.width) canvas.width = img.width;
     if (canvas.height !== img.height) canvas.height = img.height;
     ctx.drawImage(img, 0, 0);
 
-    const fp = getFingerprint(ctx, canvas.width, canvas.height);
-    if (fp === frameFingerprint[idx]) {
-      frameStaleCount[idx] = (frameStaleCount[idx] || 0) + 1;
-    } else {
-      frameStaleCount[idx] = 0;
-      frameFingerprint[idx] = fp;
-    }
-
-    if (frameStaleCount[idx] > MAX_STALE) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const ov = document.getElementById('cam-overlay-' + idx);
-      if (ov) ov.style.display = '';
-      const dt = document.getElementById('cam-dot-' + idx);
-      if (dt) dt.className = 'cam-dot offline';
-      schedulePoll(idx, gen, false, true);
-      return;
-    }
+    try {
+      const fp = getFingerprint(ctx, canvas.width, canvas.height);
+      if (fp === frameFingerprint[idx]) {
+        frameStaleCount[idx] = (frameStaleCount[idx] || 0) + 1;
+      } else {
+        frameStaleCount[idx] = 0;
+        frameFingerprint[idx] = fp;
+      }
+      if (frameStaleCount[idx] > MAX_STALE) {
+        goOffline(idx, gen);
+        return;
+      }
+    } catch (_) {}
 
     const dets = detectionsCache[idx] || [];
     const sx = canvas.width / 640;
@@ -258,20 +258,24 @@ function pollOne(idx, gen) {
 
   img.onerror = function() {
     if (gen !== camGen) return;
-    const canvas = document.getElementById('cam-canvas-' + idx);
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    const ov = document.getElementById('cam-overlay-' + idx);
-    if (ov) ov.style.display = '';
-    const dt = document.getElementById('cam-dot-' + idx);
-    if (dt) dt.className = 'cam-dot offline';
-
-    schedulePoll(idx, gen, false, true);
+    goOffline(idx, gen);
   };
 
   img.src = API_CAM + '/api/camera/latest/' + idx + '?t=' + Date.now();
+}
+
+function goOffline(idx, gen) {
+  if (gen !== camGen) return;
+  const canvas = document.getElementById('cam-canvas-' + idx);
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  const ov = document.getElementById('cam-overlay-' + idx);
+  if (ov) ov.style.display = '';
+  const dt = document.getElementById('cam-dot-' + idx);
+  if (dt) dt.className = 'cam-dot offline';
+  schedulePoll(idx, gen, false, true);
 }
 
 // Inference queue — one at a time

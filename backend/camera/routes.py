@@ -106,7 +106,7 @@ async def get_latest_frame(factory_id: int):
     if not frame:
         return Response(status_code=404)
     last = camera_last_upload.get(factory_id)
-    if last and time.time() - last > STALE_AFTER:
+    if not last or time.time() - last > STALE_AFTER:
         return Response(status_code=204)
     return Response(content=frame, media_type="image/jpeg", headers={"Access-Control-Allow-Origin": "*"})
 
